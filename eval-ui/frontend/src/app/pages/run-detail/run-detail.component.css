@@ -1,0 +1,118 @@
+.muted       { color: var(--muted); }
+/* ── Response modal: per-trial blocks ───────────────────────────────────── */
+.trial-block {
+  padding: 16px 0;
+  border-top: 1px solid var(--border);
+}
+.trial-block:first-child {
+  padding-top: 0;
+  border-top: none;
+}
+.trial-block:last-child {
+  padding-bottom: 0;
+}
+
+.trial-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.trial-num {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.02em;
+}
+
+.trial-section-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 10px 0 4px;
+}
+
+.trial-request,
+.trial-response {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+}
+
+.trial-request {
+  /* request blocks tend to be longer than responses with converters applied */
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.trial-details {
+  margin: 4px 0 6px;
+}
+.trial-details summary {
+  font-size: 11px;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px 0;
+  user-select: none;
+}
+.trial-details summary:hover { color: var(--text); }
+.trial-details[open] summary { margin-bottom: 4px; }
+
+/* ── AI summary ──────────────────────────────────────────────────────────── */
+.btn-generate {
+  padding: 8px 18px;
+  border-radius: var(--radius);
+  border: 1px solid var(--accent);
+  background: rgba(88,166,255,.1);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background .15s;
+}
+.btn-generate:hover { background: rgba(88,166,255,.2); }
+
+.summary-card {
+  padding: 20px 24px;
+}
+
+.summary-text {
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.summary-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+
+/* blinking block cursor shown while streaming */
+.summary-cursor {
+  display: inline-block;
+  width: 8px;
+  height: 14px;
+  background: var(--accent);
+  vertical-align: text-bottom;
+  margin-left: 2px;
+  animation: blink .9s step-end infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }

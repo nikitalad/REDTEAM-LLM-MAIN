@@ -1,0 +1,159 @@
+.pg-card { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+
+.pg-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.agent-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.agent-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface2);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+
+.agent-chip:hover { border-color: var(--accent); }
+.agent-chip.selected { border-color: var(--accent); background: rgba(88, 166, 255, 0.12); }
+.agent-chip.unhealthy { opacity: 0.7; }
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.dot.green { background: var(--green); }
+.dot.red   { background: var(--red); }
+
+.pg-textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  min-height: 110px;
+}
+.pg-textarea:focus { outline: none; border-color: var(--accent); }
+.pg-textarea:disabled { opacity: 0.7; cursor: not-allowed; }
+
+.pg-actions { display: flex; align-items: center; gap: 12px; }
+
+.btn-primary {
+  background: var(--accent);
+  color: #0d1117;
+  border: none;
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background .15s, opacity .15s;
+}
+.btn-primary:hover:not(:disabled) { background: #79b8ff; }
+.btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.muted { color: var(--muted); font-size: 12px; }
+
+/* ── Result ───────────────────────────────────────────────────────────────── */
+.pg-result { margin-top: 16px; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+.pg-result h3 { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 4px; }
+
+.pg-meta { display: flex; gap: 8px; }
+
+.meta-pill {
+  padding: 4px 10px;
+  border-radius: var(--radius);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--muted);
+}
+.meta-pill b { color: var(--text); }
+.meta-pill.danger { border-color: var(--red); color: var(--red); }
+.meta-pill.danger b { color: var(--red); }
+
+.response-text {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.55;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.tool-list { display: flex; flex-direction: column; gap: 10px; }
+
+.tool-call {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  background: var(--surface2);
+}
+.tool-call.blocked { border-color: var(--red); }
+
+.tc-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.tc-name {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tc-args, .tc-result {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.tc-reason {
+  margin: 6px 0;
+  padding: 6px 10px;
+  border-left: 3px solid var(--red);
+  background: rgba(248, 81, 73, 0.08);
+  font-size: 12px;
+  color: var(--text);
+}
+
+details { margin-top: 6px; }
+details summary {
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+details summary:hover { color: var(--text); }

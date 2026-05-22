@@ -1,0 +1,14 @@
+<nav>
+  <span class="nav-brand">LLM Agent Red-Team</span>
+  <div class="nav-links">
+    <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}">Dashboard</a>
+    <a routerLink="/runs" routerLinkActive="active">All Runs</a>
+    <a routerLink="/playground" routerLinkActive="active">Custom Prompt</a>
+  </div>
+</nav>
+
+<main>
+  <router-outlet />
+</main>
+
+<footer>LLM Agent Red-Team · Eval UI</footer>

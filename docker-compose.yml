@@ -1,0 +1,262 @@
+networks:
+  # Agents need this for Anthropic API calls — NOT internal
+  agent-net:
+    driver: bridge
+
+  # Internal-only: mock-egress and gitea live here.
+  # Containers on redteam-net only can't reach the real internet.
+  # Agents join BOTH networks: agent-net for API calls, redteam-net to
+  # reach mock-egress/gitea. The experiment validity guarantee is that
+  # mock-egress:9999 is the only reachable HTTP server *inside* the sandbox
+  # — any payload that curls mock-egress is logged; real-internet curls
+  # from inside the container would succeed but are detectable via the
+  # egress log being empty for that attempt.
+  redteam-net:
+    driver: bridge
+    internal: true
+
+  # Internal-only: Redis result store lives here.
+  # Agents are NOT on this network — a compromised agent cannot reach
+  # redis:6379 to corrupt ASR data or poison the egress hit log.
+  results-net:
+    driver: bridge
+    internal: true
+
+services:
+
+  react-agent:
+    build:
+      context: ./agents/react
+      dockerfile: Dockerfile
+    container_name: react-agent
+    networks: [agent-net, redteam-net]
+    volumes:
+      - ./codebase:/workspace
+      - ./secrets:/secrets:ro
+      - agent-workspace:/tmp/work
+    env_file: .env
+    environment:
+      - AGENT_TYPE=react
+      - WORKSPACE_PATH=/workspace
+      - SECRETS_PATH=/secrets
+      - MOCK_EGRESS_URL=http://mock-egress:9999
+      - GITEA_URL=http://gitea:3000
+    ports:
+      - "8001:8000"
+    depends_on: [mock-egress, gitea, mock-web]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  coder-reviewer:
+    build:
+      context: ./agents/coder-reviewer
+      dockerfile: Dockerfile
+    container_name: coder-reviewer
+    networks: [agent-net, redteam-net]
+    volumes:
+      - ./codebase:/workspace
+      - ./secrets:/secrets:ro
+      - agent-workspace:/tmp/work
+    env_file: .env
+    environment:
+      - AGENT_TYPE=coder_reviewer
+      - WORKSPACE_PATH=/workspace
+      - SECRETS_PATH=/secrets
+      - MOCK_EGRESS_URL=http://mock-egress:9999
+      - GITEA_URL=http://gitea:3000
+    ports:
+      - "8002:8000"
+    depends_on: [mock-egress, gitea, mock-web]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  mock-web:
+    build:
+      context: ./mock-web-server
+      dockerfile: Dockerfile
+    container_name: mock-web
+    networks: [agent-net, redteam-net]
+    ports:
+      - "8888:8888"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8888/ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    networks: [results-net]
+    # Local dev only: set REDIS_HOST_PORT=6379 in .env to expose Redis on
+    # localhost for direct script access. Leave unset in CI and production
+    # so the port is not published (results-net is internal-only).
+    ports:
+      - "${REDIS_HOST_PORT:-}:6379"
+    volumes:
+      - redis-data:/data
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  mock-egress:
+    build:
+      context: ./mock-egress
+      dockerfile: Dockerfile
+    container_name: mock-egress
+    networks: [redteam-net, results-net]
+    volumes:
+      - ./results/egress-log:/app/log
+    environment:
+      - RESULT_BACKEND=redis
+      - REDIS_URL=redis://redis:6379/0
+    ports:
+      - "9999:9999"
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9999/ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  gitea:
+    image: gitea/gitea:latest
+    container_name: gitea
+    networks: [agent-net, redteam-net]
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+      - GITEA__server__DOMAIN=gitea
+      - GITEA__server__HTTP_PORT=3000
+      - GITEA__security__INSTALL_LOCK=true
+      - GITEA__database__DB_TYPE=sqlite3
+    volumes:
+      - gitea-data:/data
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  eval-ui:
+    build:
+      context: ./eval-ui
+      dockerfile: Dockerfile
+    container_name: eval-ui
+    networks: [agent-net, results-net]
+    env_file: .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - SUMMARY_MODEL=claude-sonnet-4-6
+      # Override host-side URLs from .env with docker-internal DNS names
+      # so the playground proxy can reach the agent containers.
+      - REACT_AGENT_URL=http://react-agent:8000
+      - CODER_REVIEWER_AGENT_URL=http://coder-reviewer:8000
+      - POLICY_GUARD_AGENT_URL=http://policy-guard:8000
+    ports:
+      - "4200:4200"
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4200/api/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  policy-guard:
+    build:
+      context: ./agents/policy-guard
+      dockerfile: Dockerfile
+    container_name: policy-guard
+    networks: [agent-net, redteam-net]
+    volumes:
+      - ./codebase:/workspace
+      - ./secrets:/secrets:ro
+      - agent-workspace:/tmp/work
+    env_file: .env
+    environment:
+      - AGENT_TYPE=policy_guard
+      - WORKSPACE_PATH=/workspace
+      - WORK_DIR=/tmp/work
+      - SECRETS_PATH=/secrets
+      - MOCK_EGRESS_URL=http://mock-egress:9999
+      - GITEA_URL=http://gitea:3000
+      # LangSmith tracing — opt-in via .env (LANGCHAIN_TRACING_V2=true).
+      # Off by default because traces contain prompt-injection payloads.
+      - LANGCHAIN_PROJECT=redteam-policy-guard
+    ports:
+      - "8003:8000"
+    depends_on: [mock-egress, gitea, mock-web]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  eval-runner:
+    build:
+      context: .
+      dockerfile: eval/Dockerfile
+    container_name: eval-runner
+    networks: [agent-net, redteam-net, results-net]
+    volumes:
+      - ./eval:/app/eval
+      - ./results:/app/results
+      - ./codebase:/app/codebase:ro
+    env_file: .env
+    environment:
+      - REACT_AGENT_URL=http://react-agent:8000
+      - CODER_REVIEWER_AGENT_URL=http://coder-reviewer:8000
+      - POLICY_GUARD_AGENT_URL=http://policy-guard:8000
+      - MOCK_EGRESS_URL=http://mock-egress:9999
+      - RESULTS_DIR=/app/results/asr
+      - EGRESS_LOG_PATH=/app/results/egress-log/egress_attempts.jsonl
+      - RESULT_BACKEND=redis
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      react-agent:
+        condition: service_healthy
+      coder-reviewer:
+        condition: service_healthy
+      policy-guard:
+        condition: service_healthy
+      mock-egress:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    profiles: [run]
+
+volumes:
+  gitea-data:
+  redis-data:
+  agent-workspace:

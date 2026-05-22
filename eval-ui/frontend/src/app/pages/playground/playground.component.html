@@ -1,0 +1,97 @@
+<div class="page-header">
+  <h1>Custom Prompt</h1>
+  <p>Send a manual prompt to a running agent. Useful for spot-checking guardrail behaviour.</p>
+</div>
+
+@if (loadingAgents()) {
+  <div class="state-center"><div class="spinner"></div><br>Loading agents…</div>
+} @else if (agentsError()) {
+  <div class="error-box">{{ agentsError() }}</div>
+} @else {
+  <div class="card pg-card">
+    <label class="pg-label">Agent</label>
+    <div class="agent-chips">
+      @for (a of agents(); track a.id) {
+        <button
+          type="button"
+          class="agent-chip"
+          [class.selected]="selectedAgent() === a.id"
+          [class.unhealthy]="!a.healthy"
+          (click)="selectAgent(a.id)"
+          [title]="a.healthy ? 'Reachable' : 'Health check failed — agent may not respond'">
+          <span class="dot" [class.green]="a.healthy" [class.red]="!a.healthy"></span>
+          {{ a.label }}
+        </button>
+      }
+    </div>
+
+    <label class="pg-label" for="task">Prompt</label>
+    <textarea
+      id="task"
+      rows="6"
+      class="pg-textarea"
+      placeholder="e.g. List the files in the workspace and summarise what kind of project this is."
+      [ngModel]="task()"
+      (ngModelChange)="task.set($event)"
+      [disabled]="running()"></textarea>
+
+    <div class="pg-actions">
+      <button class="btn-primary" (click)="submit()" [disabled]="!canSubmit()">
+        @if (running()) { Running… } @else { Send to {{ selectedAgent() || 'agent' }} }
+      </button>
+      @if (running()) {
+        <span class="muted">The agent may take up to a minute on complex prompts.</span>
+      }
+    </div>
+  </div>
+
+  @if (error()) {
+    <div class="error-box">{{ error() }}</div>
+  }
+
+  @if (response(); as r) {
+    <div class="card pg-result">
+      <div class="pg-meta">
+        <span class="meta-pill">turns: <b>{{ turnCount() }}</b></span>
+        @if (r.denied_count !== undefined) {
+          <span class="meta-pill" [class.danger]="(r.denied_count ?? 0) > 0">
+            blocked: <b>{{ r.denied_count }}</b>
+          </span>
+        }
+      </div>
+
+      <h3>Final response</h3>
+      <pre class="response-text">{{ r.final_response || '(empty)' }}</pre>
+
+      @if (r.tool_calls?.length) {
+        <h3>Tool calls ({{ r.tool_calls.length }})</h3>
+        <div class="tool-list">
+          @for (tc of r.tool_calls; track $index) {
+            <div class="tool-call" [class.blocked]="tc.blocked">
+              <div class="tc-header">
+                <span class="tc-name">{{ tc.tool }}</span>
+                @if (tc.blocked) {
+                  <span class="badge badge-high">BLOCKED</span>
+                } @else if (tc.reviewer_decision === 'DENY') {
+                  <span class="badge badge-high">DENY</span>
+                } @else {
+                  <span class="badge badge-zero">OK</span>
+                }
+              </div>
+              <pre class="tc-args">{{ prettyArgs(tc.input) }}</pre>
+              @if (tc.reviewer_reason && tc.reviewer_reason !== 'policy passed') {
+                <div class="tc-reason">{{ tc.reviewer_reason }}</div>
+              }
+              @if (tc.result) {
+                <details>
+                  <summary>result preview</summary>
+                  <pre class="tc-result">{{ tc.result }}</pre>
+                </details>
+              }
+            </div>
+          }
+        </div>
+      }
+    </div>
+  }
+}

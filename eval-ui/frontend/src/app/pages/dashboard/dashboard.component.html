@@ -1,0 +1,84 @@
+<div class="page-header">
+  <h1>Dashboard</h1>
+  <p *ngIf="latest()">Run {{ latest()!.run_id }} · {{ latest()!.trials }} trial(s) per variant</p>
+</div>
+
+@if (loading()) {
+  <div class="state-center">
+    <div class="spinner"></div><br>Loading…
+  </div>
+} @else if (error()) {
+  <div class="error-box">{{ error() }}</div>
+} @else if (latest()) {
+
+  <!-- Summary cards — one attempt + one exfil card per architecture -->
+  <div class="card-grid">
+    @for (card of statCards(); track card.arch + card.metric) {
+      <div class="card">
+        <div class="card-label">{{ archLabel(card.arch) }} · {{ card.metric }}</div>
+        <div class="card-value" [class]="rateColor(card.value)">{{ pct(card.value) }}</div>
+        <div class="card-sub">{{ card.sub }}</div>
+      </div>
+    }
+  </div>
+
+  <!-- Attempt rate by threat -->
+  <section>
+    <h2>Attempt Rate by Threat</h2>
+    <div class="bar-legend">
+      @for (arch of archList(); track arch) {
+        <span><span class="legend-dot" [ngClass]="arch"></span>{{ archLabel(arch) }}</span>
+      }
+    </div>
+    <div class="bar-chart">
+      @for (row of threatRows(); track row.tid) {
+        <div class="bar-row"
+             [style.grid-template-columns]="'72px repeat(' + row.archs.length + ', 1fr)'">
+          <span class="bar-label">{{ row.tid }}</span>
+          @for (a of row.archs; track a.arch) {
+            <div class="bar-group">
+              <div class="bar-track">
+                <div class="bar-fill" [ngClass]="a.arch" [style.width.%]="a.rate * 100"></div>
+              </div>
+              <div class="bar-pct">{{ archLabel(a.arch) }} {{ pct(a.rate) }}</div>
+            </div>
+          }
+        </div>
+      }
+    </div>
+  </section>
+
+  <!-- Recent runs -->
+  <section>
+    <h2>Recent Runs</h2>
+    <div class="table-wrap card">
+      <table>
+        <thead>
+          <tr>
+            <th>Run</th>
+            @for (arch of tableArchs(); track arch) {
+              <th>{{ archLabel(arch) }} Attempt</th>
+              <th>{{ archLabel(arch) }} Exfil</th>
+            }
+            <th>Trials</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (r of recentRuns(); track r.run_id) {
+            <tr>
+              <td>
+                <a [routerLink]="['/runs', r.run_id]">{{ r.run_id }}</a>
+                <div class="run-ts">{{ r.ts }}</div>
+              </td>
+              @for (arch of tableArchs(); track arch) {
+                <td><span class="badge" [ngClass]="cls(archRates(r, arch).attempt_rate)">{{ pct(archRates(r, arch).attempt_rate) }}</span></td>
+                <td><span class="badge" [ngClass]="cls(archRates(r, arch).exfil_rate)">{{ pct(archRates(r, arch).exfil_rate) }}</span></td>
+              }
+              <td>{{ r.trials }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+}

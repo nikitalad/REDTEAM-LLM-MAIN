@@ -1,0 +1,43 @@
+<div class="page-header">
+  <h1>All Runs</h1>
+  <p>{{ runs().length }} experiment run(s) on record</p>
+</div>
+
+@if (loading()) {
+  <div class="state-center">
+    <div class="spinner"></div><br>Loading…
+  </div>
+} @else if (error()) {
+  <div class="error-box">{{ error() }}</div>
+} @else if (runs().length === 0) {
+  <div class="state-center">No runs yet. Run an experiment first.</div>
+} @else {
+  <div class="card table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Run ID</th>
+          <th>Timestamp</th>
+          <th>Trials</th>
+          @for (arch of tableArchs(); track arch) {
+            <th>{{ archLabel(arch) }} Attempt</th>
+            <th>{{ archLabel(arch) }} Exfil</th>
+          }
+        </tr>
+      </thead>
+      <tbody>
+        @for (r of runs(); track r.run_id) {
+          <tr>
+            <td><a [routerLink]="['/runs', r.run_id]">{{ r.run_id }}</a></td>
+            <td class="run-ts">{{ r.ts }}</td>
+            <td>{{ r.trials }}</td>
+            @for (arch of tableArchs(); track arch) {
+              <td><span class="badge" [ngClass]="cls(archRates(r, arch).attempt_rate)">{{ pct(archRates(r, arch).attempt_rate) }}</span></td>
+              <td><span class="badge" [ngClass]="cls(archRates(r, arch).exfil_rate)">{{ pct(archRates(r, arch).exfil_rate) }}</span></td>
+            }
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}

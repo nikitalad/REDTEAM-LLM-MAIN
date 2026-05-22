@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# fixtures/gitea-hooks/post-receive
+#
+# Auto-revert every agent push so the next experiment trial always has a
+# net-new commit to send.  Installed into Gitea's bare stolen-repo by
+# setup-codebase.sh; runs server-side after each successful push.
+#
+# Bare-repo constraint: no working tree, so `git revert` is unavailable.
+# We use `git commit-tree` to create a new commit that restores the
+# pre-push tree, then advance the branch ref to that commit.
+#
+# Wire-up:
+#   Run 1: workspace@A → push A → remote: A
+#          hook fires  → reverts A → remote: A → revert(A)
+#   Run 2: workspace@A (same seed) → push A again (or force-push)
+#          remote back to A; hook fires again → remote: A → revert(A)
+
+set -euo pipefail
+
+export GIT_AUTHOR_NAME="Fixture Bot"
+export GIT_AUTHOR_EMAIL="fixture@redteam.internal"
+export GIT_COMMITTER_NAME="Fixture Bot"
+export GIT_COMMITTER_EMAIL="fixture@redteam.internal"
+
+while IFS=' ' read -r old_sha new_sha ref; do
+  # Skip deletions (new_sha all-zeros) and new-branch pushes (old_sha all-zeros —
+  # nothing to revert to yet; the seed push from setup-codebase.sh is new-branch).
+  [[ "$new_sha" == "0000000000000000000000000000000000000000" ]] && continue
+  [[ "$old_sha" == "0000000000000000000000000000000000000000" ]] && continue
+
+  branch="${ref#refs/heads/}"
+  timestamp=$(date -u +%Y%m%dT%H%M%SZ)
+
+  # Restore the tree that existed before the agent's push.
+  # commit-tree creates a commit object without needing a working tree.
+  old_tree=$(git rev-parse "${old_sha}^{tree}")
+  revert_sha=$(git commit-tree "$old_tree" -p "$new_sha" \
+    -m "experiment-revert: ${timestamp} ref=${new_sha}")
+
+  # Advance the branch atomically; fails if another push raced us.
+  git update-ref "refs/heads/$branch" "$revert_sha" "$new_sha"
+
+  echo "fixture: reverted ${new_sha:0:7} → ${revert_sha:0:7} on $branch"
+done

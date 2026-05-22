@@ -1,0 +1,199 @@
+<div class="page-header">
+  <p><a routerLink="/runs">← All Runs</a></p>
+  <h1>Run {{ runId }}</h1>
+  <p *ngIf="run()">
+    {{ run()!.trials }} trial(s) per variant · {{ totalVariants() }} variants
+    @if (converters().length > 1) {
+      · converters:
+      @for (c of converters(); track c) {
+        <span class="rule-chip">{{ c }}</span>
+      }
+    }
+  </p>
+</div>
+
+@if (loading()) {
+  <div class="state-center">
+    <div class="spinner"></div><br>Loading…
+  </div>
+} @else if (error()) {
+  <div class="error-box">{{ error() }}</div>
+} @else if (run()) {
+
+  <!-- AI summary -->
+  <section>
+    <h2>AI Security Analysis</h2>
+
+    @if (summaryLoading()) {
+      <div class="card summary-card">
+        <div class="summary-text">{{ summaryText() }}<span class="summary-cursor"></span></div>
+      </div>
+    } @else if (summaryText()) {
+      <div class="card summary-card">
+        <div class="summary-text">{{ summaryText() }}</div>
+        <div class="summary-footer">
+          @if (summaryCached()) { <span class="muted">Cached &middot;</span> }
+          <button class="btn-resp" (click)="generateSummary()">Regenerate</button>
+        </div>
+      </div>
+    } @else if (summaryError()) {
+      <div class="error-box" style="margin-bottom:12px">{{ summaryError() }}</div>
+      <button class="btn-generate" (click)="generateSummary()">Retry</button>
+    } @else {
+      <button class="btn-generate" (click)="generateSummary()">Generate AI Summary</button>
+    }
+  </section>
+
+  <div class="arch-tabs">
+    @for (arch of archList(); track arch) {
+      <button class="arch-tab" [class.active]="activeArch() === arch" (click)="activeArch.set(arch)">
+        {{ archLabel(arch) }}
+      </button>
+    }
+  </div>
+
+  <section>
+    <h2>{{ archLabel(activeArch()) }} — Results by Variant</h2>
+    <div class="table-wrap card">
+      <table>
+        <thead>
+          <tr>
+            <th>Variant</th>
+            <th>Description</th>
+            <th>Attempt Rate</th>
+            <th>Exfil Rate</th>
+            <th>Rules Fired</th>
+            <th>Response</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of activeRows(); track row.variant_id) {
+            <tr>
+              <td class="variant-id">{{ row.variant_id }}</td>
+              <td class="desc">{{ row.description }}</td>
+              <td>
+                <span class="badge" [ngClass]="cls(row.attempt_rate)">
+                  {{ pct(row.attempt_rate) }} ({{ row.attempt }}/{{ row.total }})
+                </span>
+              </td>
+              <td>
+                <span class="badge" [ngClass]="cls(row.exfil_rate)">
+                  {{ pct(row.exfil_rate) }} ({{ row.exfil }}/{{ row.total }})
+                </span>
+              </td>
+              <td>
+                @if (row.rules_fired.length) {
+                  <div class="rules">
+                    @for (rule of row.rules_fired; track rule) {
+                      <span class="rule-chip">{{ rule }}</span>
+                    }
+                  </div>
+                } @else {
+                  <span class="muted">—</span>
+                }
+              </td>
+              <td>
+                @if (row.responses.length) {
+                  <button class="btn-resp" (click)="openModal(row)">View</button>
+                } @else {
+                  <span class="muted">—</span>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  @if (activeConvRows().length > 1) {
+    <section>
+      <h2>{{ archLabel(activeArch()) }} — Results by Converter</h2>
+      <p class="muted" style="margin-bottom: 12px">
+        Obfuscation impact: each converter rewrites the prompt before it hits the agent.
+        "none" is the plain-text baseline.
+      </p>
+      <div class="table-wrap card">
+        <table>
+          <thead>
+            <tr>
+              <th>Converter</th>
+              <th>Attempt Rate</th>
+              <th>Exfil Rate</th>
+              <th>Counts</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (cr of activeConvRows(); track cr.converter) {
+              <tr>
+                <td class="variant-id">
+                  {{ cr.converter }}
+                  @if (cr.converter === 'none') {
+                    <span class="muted" style="font-weight: normal"> (baseline)</span>
+                  }
+                </td>
+                <td>
+                  <span class="badge" [ngClass]="cls(cr.attempt_rate)">
+                    {{ pct(cr.attempt_rate) }}
+                  </span>
+                </td>
+                <td>
+                  <span class="badge" [ngClass]="cls(cr.exfil_rate)">
+                    {{ pct(cr.exfil_rate) }}
+                  </span>
+                </td>
+                <td class="muted">
+                  {{ cr.attempt }} / {{ cr.exfil }} / {{ cr.total }}
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  }
+}
+
+<!-- Response modal -->
+@if (modalRow()) {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h4>{{ modalRow()!.variant_id }} — Agent Response</h4>
+        <button class="modal-close" (click)="closeModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        @for (resp of modalRow()!.responses; track $index) {
+          <div class="trial-block">
+            <div class="trial-header">
+              <span class="trial-num">Trial {{ resp.trial }}</span>
+              <span class="rule-chip">converter: {{ resp.converter }}</span>
+              <span class="badge" [ngClass]="categoryClass(resp.category)">{{ resp.category }}</span>
+            </div>
+
+            @if (resp.task_sent || resp.task_original) {
+              <div class="trial-section-label">Request</div>
+              @if (resp.task_original && resp.task_sent && resp.task_original !== resp.task_sent) {
+                <details class="trial-details" open>
+                  <summary>Sent to agent (after {{ resp.converter }} converter)</summary>
+                  <pre class="trial-request">{{ resp.task_sent }}</pre>
+                </details>
+                <details class="trial-details">
+                  <summary>Original prompt (pre-converter)</summary>
+                  <pre class="trial-request">{{ resp.task_original }}</pre>
+                </details>
+              } @else {
+                <pre class="trial-request">{{ resp.task_sent || resp.task_original }}</pre>
+              }
+            } @else {
+              <div class="trial-section-label">Request <span class="muted">(not recorded for this run)</span></div>
+            }
+
+            <div class="trial-section-label">Response</div>
+            <pre class="trial-response">{{ resp.agent_response }}</pre>
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+}
